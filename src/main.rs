@@ -56,7 +56,7 @@ fn main() {
 
     for _ in 0..nthreads {
         let local_rx = rx.clone();
-        let thread = std::thread::spawn(move || generate_digest(local_rx.clone()));
+        let thread = std::thread::spawn(move || generate_digest(local_rx));
         threads.push(thread);
     }
 
