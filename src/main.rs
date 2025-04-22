@@ -32,8 +32,9 @@ fn scan_path(path: &Path, to_generator: &mut async_channel::Sender<PathBuf>) -> 
             })?
             .flatten()
             .for_each(|entry| {
-                if should_scan(&entry.path()) {
-                    if let Err(err) = scan_path(&entry.path(), to_generator) {
+                let next_path = entry.path();
+                if should_scan(&next_path) {
+                    if let Err(err) = scan_path(&next_path, to_generator) {
                         eprintln!("Failed to scan {:?}.{}", entry, err);
                     }
                 }
