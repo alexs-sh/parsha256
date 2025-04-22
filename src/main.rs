@@ -6,15 +6,24 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+fn should_scan(path: &Path) -> bool {
+    // Let's skip some runtime paths
+    let skip_prefixes = ["/dev/", "/proc/", "/sys/"];
+    path.to_str()
+        .map(|p| !skip_prefixes.iter().any(|prefix| p.starts_with(prefix)))
+        .unwrap_or(false)
+}
+
 fn scan_path(path: &Path, to_generator: &mut async_channel::Sender<PathBuf>) -> io::Result<()> {
-    if path.is_file() {
+    let file_type = fs::metadata(path)?.file_type();
+    if file_type.is_file() {
         // End of recursion: normalize the filename and pass it to the digest generator
         let filename = fs::canonicalize(path)?;
         to_generator.send_blocking(filename).map_err(|err| {
             eprintln!("Failed to send filename {:?}. {}", path, err);
             io::Error::new(io::ErrorKind::Other, err.to_string())
         })?;
-    } else if path.is_dir() {
+    } else if file_type.is_dir() {
         // Recursion step: visit each entry and repeat the process
         path.read_dir()
             .map_err(|err| {
@@ -23,8 +32,10 @@ fn scan_path(path: &Path, to_generator: &mut async_channel::Sender<PathBuf>) -> 
             })?
             .flatten()
             .for_each(|entry| {
-                if let Err(err) = scan_path(&entry.path(), to_generator) {
-                    eprintln!("Failed to scan {:?}.{}", entry, err);
+                if should_scan(&entry.path()) {
+                    if let Err(err) = scan_path(&entry.path(), to_generator) {
+                        eprintln!("Failed to scan {:?}.{}", entry, err);
+                    }
                 }
             });
     }
